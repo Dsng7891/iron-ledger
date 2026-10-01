@@ -92,7 +92,7 @@ export class HelpOverlay {
     const content: HelpLine[] = [];
 
     content.push({ text: '《铁与账本》操作指南', color: SEMANTIC.accent, bold: true });
-    content.push({ text: '' });
+    content.push({ text: '', color: TEXT.primary });
     content.push({ text: '─'.repeat(60), color: SURFACE.border });
 
     const modeTitles: Record<InputMode, string> = {
@@ -112,7 +112,7 @@ export class HelpOverlay {
         });
       }
 
-      content.push({ text: '' });
+      content.push({ text: '', color: TEXT.primary });
     }
 
     // --- 游戏概念速查 ---

@@ -1,19 +1,21 @@
 /**
- * 命令面板 (`,` �?`/`) —�?高级玩家的快速入口�? *
+ * 命令面板 (`,` 或 `/`) — 高级玩家的快速入口。
+ *
  * 两种模式:
- *   command 列出所有可用命�? 上下选择 + Enter 执行
+ *   command 列出所有可用命令, 上下选择 + Enter 执行
  *   search  输入文本过滤 (用于跳转省份/国家)
  *
- * 为什么需要命令面�?
- *   键位是有限的, 而命令会随游戏进程不断增�?(解锁新的政策/建筑/外交动作)�? *   命令面板让新功能无需新增键位就能访问�? */
+ * 为什么需要命令面板:
+ *   键位是有限的, 而命令会随游戏进程不断增加 (解锁新的政策/建筑/外交动作)。
+ *   命令面板让新功能无需新增键位就能访问。
+ */
 
-import { BoxRenderable, TextRenderable, type CliRenderer } from '@opentui/core';
-import { SEMANTIC, SURFACE, TEXT, displayWidth, truncateDisplay } from '../theme.ts';
-import type { KeyEvent } from '@opentui/core';
+import { BoxRenderable, TextRenderable, type CliRenderer, type KeyEvent } from '@opentui/core';
+import { SEMANTIC, SURFACE, TEXT, truncateDisplay } from '../theme.ts';
 
 /** 一个可执行命令 */
 export interface PaletteCommand {
-  /** 显示�?*/
+  /** 显示名 */
   name: string;
   /** 关联的快捷键 (若无则为 '') */
   keys: string;
@@ -23,6 +25,9 @@ export interface PaletteCommand {
 
 /** 面板模式 */
 export type PaletteMode = 'command' | 'search';
+
+/** 列表最多显示的行数 */
+const MAX_LINES = 20;
 
 export class CommandPalette {
   private box: BoxRenderable;
@@ -58,7 +63,8 @@ export class CommandPalette {
       visible: false,
     });
 
-    // 搜索/过滤输入�?    this.inputLine = new TextRenderable(renderer, {
+    // 搜索/过滤输入行
+    this.inputLine = new TextRenderable(renderer, {
       id: 'palette-input',
       content: '',
       width: '100%',
@@ -68,7 +74,7 @@ export class CommandPalette {
     this.box.add(this.inputLine);
 
     // 命令列表
-    for (let i = 0; i < 20; i++) {
+    for (let i = 0; i < MAX_LINES; i++) {
       const line = new TextRenderable(renderer, {
         id: `palette-line-${i}`,
         content: '',
@@ -108,7 +114,7 @@ export class CommandPalette {
     return this.visible;
   }
 
-  /** 是否处于搜索输入状�?(需要把字符键当作查�? */
+  /** 是否处于搜索输入状态 (需要把字符键当作查询) */
   isSearching(): boolean {
     return this.visible && this.mode === 'search';
   }
@@ -117,7 +123,7 @@ export class CommandPalette {
   handleKey(event: KeyEvent): void {
     if (!this.visible) return;
 
-    // --- 搜索模式的字符输�?---
+    // --- 搜索模式的字符输入 ---
     if (this.mode === 'search') {
       if (event.name === 'escape') {
         this.hide();
@@ -141,7 +147,8 @@ export class CommandPalette {
         this.moveSelection(1);
         return;
       }
-      // 普通字�?      if (event.sequence && event.sequence.length === 1 && !event.ctrl && !event.meta) {
+      // 普通字符
+      if (event.sequence && event.sequence.length === 1 && !event.ctrl && !event.meta) {
         this.query += event.sequence;
         this.selectedIndex = 0;
         this.applyFilter();
@@ -163,8 +170,16 @@ export class CommandPalette {
       case 'return':
         this.executeSelected();
         break;
-      // 数字键直接选第 N �?      case '1': case '2': case '3': case '4': case '5':
-      case '6': case '7': case '8': case '9': {
+      // 数字键直接选第 N 项
+      case '1':
+      case '2':
+      case '3':
+      case '4':
+      case '5':
+      case '6':
+      case '7':
+      case '8':
+      case '9': {
         const index = Number(event.name) - 1;
         if (index < this.filtered.length) {
           this.selectedIndex = index;
@@ -177,7 +192,7 @@ export class CommandPalette {
     }
   }
 
-  /** 应用过滤 (按名称子串匹�? */
+  /** 应用过滤 (按名称子串匹配) */
   private applyFilter(): void {
     if (this.query === '') {
       this.filtered = [...this.commands];
@@ -191,7 +206,7 @@ export class CommandPalette {
     this.rebuild();
   }
 
-  /** 移动选中�?*/
+  /** 移动选中项 (循环) */
   private moveSelection(delta: number): void {
     if (this.filtered.length === 0) return;
     this.selectedIndex =
@@ -199,7 +214,7 @@ export class CommandPalette {
     this.rebuild();
   }
 
-  /** 执行选中�?*/
+  /** 执行选中项 */
   private executeSelected(): void {
     const command = this.filtered[this.selectedIndex];
     if (!command) return;
@@ -209,7 +224,7 @@ export class CommandPalette {
 
   /** 重建显示 */
   private rebuild(): void {
-    // --- 输入�?---
+    // --- 输入行 ---
     if (this.mode === 'search') {
       this.inputLine.content = `> ${this.query}█`;
       this.inputLine.fg = TEXT.primary;
@@ -229,8 +244,8 @@ export class CommandPalette {
       }
 
       const isSelected = i === this.selectedIndex;
-      // 选中项用 �?标记, 逆色高亮
-      const marker = isSelected ? '�? : ' ';
+      // 选中项用 › 标记
+      const marker = isSelected ? '›' : ' ';
       const keys = command.keys ? `[${command.keys}]` : '';
       const text = `${marker} ${truncateDisplay(command.name, 30)}  ${keys}`;
 

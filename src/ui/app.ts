@@ -18,11 +18,12 @@ import { MapView, type MapViewState, type MapRenderContext, type ProvinceStats }
 import { StatusBar, buildStatusBarData } from './views/statusbar.ts';
 import { Ticker } from './views/ticker.ts';
 import { Inspector, type InspectorData } from './views/inspector.ts';
-import { InputRouter, KEY_HINTS, type InputMode } from './input.ts';
+import { InputRouter } from './input.ts';
 import { Footer } from './views/footer.ts';
 import { HelpOverlay } from './views/help.ts';
 import { CommandPalette } from './views/palette.ts';
 import { GameStore, type Command } from '../state/store.ts';
+import { saveGame as persistGame } from '../state/save.ts';
 import type { GameState, MapViewMode, ProvinceId, SpeedSetting } from '../sim/types.ts';
 import { VIEW_MODES, VIEW_MODE_NAMES } from '../sim/types.ts';
 import { invalidateEconomyCache } from '../sim/tick.ts';
@@ -391,7 +392,7 @@ export class App {
       this.help.hide();
       this.router.setMode('normal');
     } else {
-      this.help.show(KEY_HINTS);
+      this.help.show();
       this.router.setMode('modal');
     }
     this.render();
@@ -478,9 +479,8 @@ export class App {
 
   private saveGame(): void {
     try {
-      const { saveGame } = require('../state/save.ts') as typeof import('../state/save.ts');
       const id = `auto-${this.store.state.date.year}-${this.store.state.date.month}`;
-      saveGame(id, this.store.state);
+      persistGame(id, this.store.state);
       this.store.pushMessage(`已保存: ${id}`, 'system');
     } catch (error) {
       this.store.pushMessage(`保存失败: ${(error as Error).message}`, 'system');

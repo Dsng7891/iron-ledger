@@ -16,7 +16,7 @@
 
 import { BoxRenderable, TextRenderable, type CliRenderer } from '@opentui/core';
 import { SEMANTIC, SURFACE, TEXT, gauge, statusColor, formatMoney, truncateDisplay, displayWidth } from '../theme.ts';
-import type { Nation, SpeedSetting } from '../../sim/types.ts';
+import type { GameState, Nation, SpeedSetting } from '../../sim/types.ts';
 import { GOVERNMENT_NAMES, SPEED_LABELS } from '../../sim/types.ts';
 
 /** 顶栏的数据投影 —— 只读, 不依赖完整 GameState */
@@ -27,6 +27,23 @@ export interface StatusBarData {
   speed: SpeedSetting;
   /** 待处理的决策数 */
   pendingDecisions: number;
+}
+
+/**
+ * 从 GameState 构建顶栏数据投影。
+ * 找不到玩家国家时返回 null (调用方跳过本次刷新)。
+ */
+export function buildStatusBarData(
+  state: GameState,
+  speed: SpeedSetting
+): StatusBarData | null {
+  const nation = state.nations.find((n) => n.id === state.playerNation);
+  if (!nation) return null;
+  return {
+    nation,
+    speed,
+    pendingDecisions: state.pendingDecisions.length,
+  };
 }
 
 export class StatusBar {
