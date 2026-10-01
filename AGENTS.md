@@ -41,6 +41,13 @@ No linter, formatter, or CI config exists. Verification order: `bun run typechec
 - Determinism: `src/sim/rng.ts` (mulberry32) makes a seed produce an identical world; tests rely on this.
 - Saves live at `~/.iron-ledger/saves/`. CLI flags: `--seed=N --load=<id> --autoplay --export=<id>` (export generates + saves without starting the UI).
 
+## GitHub
+
+- Remote: `origin` → https://github.com/Dsng7891/iron-ledger (public), default branch `main`.
+- **Leverage GitHub actively**: track work as issues (mirror/extend `TODO.md` priorities), use feature branches + PRs for non-trivial changes, and only push with `bun run typecheck` + `bun test` green.
+- Auth: `gh` CLI is **not installed** (install with `winget install GitHub.cli` if needed). A working OAuth token (scopes `repo workflow gist`) is stored in Git Credential Manager — plain `git push` already works; for REST API calls fetch it with `printf "protocol=https\nhost=github.com\n\n" | git credential fill`.
+- GitHub API gotcha via PS 5.1: JSON bodies containing non-ASCII must be sent as UTF-8 **bytes** (`[Text.Encoding]::UTF8.GetBytes($json)`) or the request 400s; console output of Chinese also garbles — that's display only.
+
 ## Docs
 
 - `STATUS.md` — handoff doc: architecture rules, past pitfalls (NaN from `a + b ?? 0`, annual-vs-monthly interest, CJK/double-width chars). **Partially stale** — its app.ts/inspector errors are fixed; trust `tsc`.
