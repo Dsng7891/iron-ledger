@@ -9,10 +9,10 @@
 
 ## 🚨 当前阻塞
 
-- [!] `P0` **重写 `src/ui/views/palette.ts`** — 文件被 PowerShell `Set-Content` 编码损坏，中文注释吞掉了换行符，类体结构破损，`bun start` 直接失败。
-      修复方式：用编辑器或 `write` 工具整体重写，**不要**用 PowerShell 管道改文件。
-- [!] `P0` 跑 `bun x tsc --noEmit` 直到 `src/` 下零报错
-- [!] `P0` `bun run dev` 能正常启动并显示地图
+- [x] `P0` **重写 `src/ui/views/palette.ts`** — 已整体重写（UTF-8 正确），`bun start` 恢复可用。
+- [x] `P0` `bun x tsc --noEmit` 零报错 — 已达成，且由 GitHub Actions CI 每次 push 校验。
+- [x] `P0` `bun run dev` 能正常启动并显示地图 — 进程存活验证 + `--export` headless 冒烟通过。
+- [!] `P0` 地图鼠标交互 + 地图快照测试（见 M1 地图渲染，对应 issue #1 / #2）
 
 ---
 
@@ -38,8 +38,8 @@
 - [x] `P1` 10 种画境模式（政治/地形/人口/发展度/资源/不满/补给/文化/外交/军事）
 - [x] `P1` 国境描边、城市符号、补给线流动虚线、战争标记
 - [x] `P1` 选中/悬停轮廓高亮
-- [!] `P0` **绑定鼠标事件** — `onMouseMove` 查格子 → 设 `hoverProvince`（当前永远是 null）
-- [!] `P0` **用 `createTestRenderer` 写快照测试** — 确认地图真的画出了东西
+- [!] `P0` **绑定鼠标事件** — `onMouseMove` 查格子 → 设 `hoverProvince`（当前永远是 null）（issue #1）
+- [!] `P0` **用 `createTestRenderer` 写快照测试** — 确认地图真的画出了东西（issue #2；命令面板已有同类测试 `test/ui/palette.test.ts` 可参考）
 
 ### 省份检视面板
 
@@ -63,10 +63,10 @@
 - [x] `P1` `ui/views/statusbar.ts` / `ticker.ts` / `footer.ts` / `help.ts`
 - [x] `P1` `ui/app.ts`：组装层
 - [x] `P1` `index.ts`：CLI 参数解析（`--seed` `--load` `--autoplay` `--export`）
-- [!] `P1` **省份搜索** — `/` 打开的 search 模式没接省份查询
-- [!] `P1` **`app['store']` 私有访问** — 加公开 getter
-- [!] `P1` **`require()` 在 ESM 不可用** — 改顶层 `import`
-- [ ] `P2` CI 校验 `sim/**` 零 UI 依赖
+- [!] `P1` **省份搜索** — `/` 打开的 search 模式没接省份查询（issue #3）
+- [!] `P1` **`app['store']` 私有访问** — 加公开 getter（issue #5）
+- [x] `P1` **`require()` 在 ESM 不可用** — 已改为顶层 `import`（app.saveGame）
+- [x] `P2` CI 校验 `sim/**` 零 UI 依赖 — `.github/workflows/ci.yml`（typecheck + test + boundary grep）
 
 ---
 
@@ -100,8 +100,8 @@
 
 ### 经济平衡 `[!]` 未收敛
 
-- [!] `P0` **所有国家长期赤字举债** — 100 年后国库仍为负
-- [!] `P0` 跑 `tools/balance.ts`，按诊断输出调 `data/index.ts` 的 `BALANCE`
+- [!] `P0` **所有国家长期赤字举债** — 100 年后国库仍为负（issue #7）
+- [~] `P0` 跑 `tools/balance.ts`，按诊断输出调 `data/index.ts` 的 `BALANCE` — 工具已验证可跑（8 世界 × 200 年，诊断正确报出赤字/科技过少），参数未调
 - [ ] `P1` 平衡目标：稳定期国库为正、通胀 2–8%、稳定度 60+
 
 ### 面板 `[ ]` 未实现
@@ -187,7 +187,7 @@
 ## 横切关注点
 
 - [x] `P0` `sim/**` 零 opentui 依赖（架构上已遵守）
-- [ ] `P0` CI 校验这条边界（加脚本）
+- [x] `P0` CI 校验这条边界（`.github/workflows/ci.yml` 每次 push/PR 检查）
 - [x] `P0` 确定性 RNG 校验：同 seed 同命令序列 → 同结果
 - [ ] `P1` trace 模式：打印每月 modifier 变化，定位蝴蝶效应
 - [x] `P1` undo/redo（近 12 月 state 快照）

@@ -1,6 +1,6 @@
 # 当前状态文档
 
-> 更新时间：项目第 1 轮开发收尾
+> 更新时间：第 2 轮（palette.ts 修复, typecheck 清零, CI 上线）
 > 用途：交接说明 —— 已完成什么、当前哪里坏了、下一步做什么
 
 ---
@@ -8,7 +8,9 @@
 ## 一句话状态
 
 **模拟层（M1 世界生成 + Modifier 管线 + 月度结算）已完成且测试通过；
-UI 层（M0/M1 渲染骨架）代码已写完，但存在若干编译错误，尚未跑通。**
+UI 层已跑通：`palette.ts` 编码损坏已整体重写，`tsc --noEmit` 零报错，
+152 项测试全绿，GitHub Actions CI（typecheck + test + sim/UI 边界）每次 push 校验。
+剩余主要缺口：地图鼠标交互（issue #1）、地图快照测试（issue #2）、M2 面板与经济平衡（issue #4/#7）。**
 
 ---
 
@@ -70,9 +72,12 @@ bun test test/sim/modifier.test.ts    # 24 项全通过
 
 ## 三、坏掉的部分
 
-### 3.1 阻塞性问题：`src/ui/views/palette.ts` 语法损坏
+> **2026-10 更新：3.1 与 3.2 已全部修复。** `tsc --noEmit` 零报错, `bun start` 恢复,
+> 由 `.github/workflows/ci.yml` 每次 push 校验。以下保留为事故记录。
 
-**这是 `bun start` 失败的直接原因。**
+### 3.1 阻塞性问题：`src/ui/views/palette.ts` 语法损坏（已修复）
+
+**原症状：`bun start` 失败的直接原因。已用 `write` 工具整体重写，勿再复发。**
 
 问题：PowerShell 的 `Set-Content` 在替换 `'round'` → `'rounded'` 时损坏了文件编码，中文注释的最后几个字节与后续代码被合并成一行：
 
@@ -89,11 +94,13 @@ bun test test/sim/modifier.test.ts    # 24 项全通过
 - `src/ui/renderer.ts` — **已修复**（重写）
 - `src/ui/views/statusbar.ts` — **已修复**（重写）
 
-`palette.ts` 尚未重写。
+`palette.ts` 已重写（见 git 提交 4810494）。
 
-### 3.2 `tsc --noEmit` 剩余错误
+### 3.2 `tsc --noEmit` 剩余错误（已全部清零）
 
-修复 palette.ts 后需要再跑一次 `bun x tsc --noEmit` 确认。当前已知剩余项：
+**下表已全部验证修复**（`bun run typecheck` 通过, CI 持续校验）。另发现并修复了此前被语法错误
+掩盖的 3 处语义错误：`statusbar.ts` 缺 `buildStatusBarData` 导出、`help.ts` 的 `HelpLine` 缺
+`color`、`help.show()` 不接受参数。历史记录：
 
 | 文件 | 错误 | 说明 |
 |------|------|------|
@@ -110,7 +117,7 @@ bun test test/sim/modifier.test.ts    # 24 项全通过
 - **地图交互缺失**：没有鼠标事件绑定，悬停省份不会触发（`hoverProvince` 永远是 null）。
 - **搜索功能是空的**：`/` 打开的是命令面板，`search` 模式没有接省份查询。
 - **经济平衡未收敛**：所有国家长期赤字举债，需要继续调 `BALANCE` 参数。
-- **`tools/balance.ts` 未验证**：刚写完，没跑过。
+- **`tools/balance.ts` 已验证**：可跑（8 世界 × 200 年），诊断正确报出"持续赤字 + 科技过少"。
 
 ---
 
@@ -125,7 +132,7 @@ OpenTUI   0.5.14
 
 ```bash
 bun install
-bun start                      # 随机世界（当前会失败）
+bun start                      # 随机世界
 bun run dev                    # 固定种子 12345
 bun run dev -- --seed=999      # 指定种子
 bun run dev -- --autoplay      # 自动推进
@@ -163,11 +170,11 @@ bun run balance                # 经济压测（8 世界 × 200 年）
 
 ## 六、下一步（按这个顺序做）
 
-### 立即（解除阻塞）
+### 立即（解除阻塞）— 已完成
 
-1. **重写 `src/ui/views/palette.ts`** —— 不要用 `Set-Content` 修，用编辑器或 `write` 工具整体重写
-2. 跑 `bun x tsc --noEmit` 直到 src/ 下零报错
-3. 跑 `bun run dev` 确认能起来
+1. [x] **重写 `src/ui/views/palette.ts`** — 已整体重写（提交 4810494）
+2. [x] 跑 `bun x tsc --noEmit` 直到 src/ 下零报错 — 已达成并由 CI 固化
+3. [x] 跑 `bun run dev` 确认能起来 — 进程存活 + headless 冒烟验证
 
 ### 然后（让地图能用）
 
