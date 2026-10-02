@@ -116,6 +116,14 @@ export class App {
   }
 
   /**
+   * 当前游戏状态 (只读用途, 如自动存档/查询)。
+   * 修改状态必须走 store 命令总线 —— 不要直接改返回的对象。
+   */
+  get state(): GameState {
+    return this.store.state;
+  }
+
+  /**
    * 创建并启动应用。
    * 必须在 finally 中调用 stop() 以确保终端恢复。
    */
