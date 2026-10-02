@@ -1,6 +1,6 @@
 # 当前状态文档
 
-> 更新时间：第 2 轮（palette.ts 修复, typecheck 清零, CI 上线）
+> 更新时间：第 3 轮（地图鼠标交互 + 快照测试 + 省份搜索, issue #1/#2/#3 已关闭）
 > 用途：交接说明 —— 已完成什么、当前哪里坏了、下一步做什么
 
 ---
@@ -8,9 +8,12 @@
 ## 一句话状态
 
 **模拟层（M1 世界生成 + Modifier 管线 + 月度结算）已完成且测试通过；
-UI 层已跑通：`palette.ts` 编码损坏已整体重写，`tsc --noEmit` 零报错，
-152 项测试全绿，GitHub Actions CI（typecheck + test + sim/UI 边界）每次 push 校验。
-剩余主要缺口：地图鼠标交互（issue #1）、地图快照测试（issue #2）、M2 面板与经济平衡（issue #4/#7）。**
+UI 层已跑通：`tsc --noEmit` 零报错，167 项测试全绿，
+GitHub Actions CI（typecheck + test + sim/UI 边界）每次 push 校验。
+地图鼠标交互（issue #1）、地图快照测试（issue #2）、省份搜索（issue #3）
+已在提交 `9d574d6` 完成并关闭。
+剩余主要缺口：M2 面板（issue #4）、`app['store']` getter（issue #5）、
+Modifier 迁移（issue #6）、经济平衡（issue #7）。**
 
 ---
 
@@ -113,11 +116,10 @@ bun test test/sim/modifier.test.ts    # 24 项全通过
 
 ### 3.3 已知功能缺口（不是 bug，是没写）
 
-- **面板（`1`–`8`）只有壳**：切模式 + 显示提示，没有实际内容。M2 阶段实现。
-- **地图交互缺失**：没有鼠标事件绑定，悬停省份不会触发（`hoverProvince` 永远是 null）。
-- **搜索功能是空的**：`/` 打开的是命令面板，`search` 模式没有接省份查询。
-- **经济平衡未收敛**：所有国家长期赤字举债，需要继续调 `BALANCE` 参数。
+- **面板（`1`–`8`）只有壳**：切模式 + 显示提示，没有实际内容。M2 阶段实现（issue #4）。
+- **经济平衡未收敛**：所有国家长期赤字举债，需要继续调 `BALANCE` 参数（issue #7）。
 - **`tools/balance.ts` 已验证**：可跑（8 世界 × 200 年），诊断正确报出"持续赤字 + 科技过少"。
+- ~~地图交互缺失 / 搜索是空的~~ — 已在 `9d574d6` 完成（issue #1/#2/#3）：鼠标悬停/点击走 `provinceFromEvent`，`/` 搜索接入 `ui/search.ts`。
 
 ---
 
@@ -176,11 +178,11 @@ bun run balance                # 经济压测（8 世界 × 200 年）
 2. [x] 跑 `bun x tsc --noEmit` 直到 src/ 下零报错 — 已达成并由 CI 固化
 3. [x] 跑 `bun run dev` 确认能起来 — 进程存活 + headless 冒烟验证
 
-### 然后（让地图能用）
+### 然后（让地图能用）— 已完成
 
-4. 给 MapView 绑定鼠标事件（`onMouseMove` 查格子 → 设 `hoverProvince`）
-5. 用 `createTestRenderer` 写快照测试，确认地图真的画出了东西
-6. 实现省份搜索（`/` 打开输入框，匹配省名/资源）
+4. [x] 给 MapView 绑定鼠标事件（`onMouseMove` 查格子 → 设 `hoverProvince`）
+5. [x] 用 `createTestRenderer` 写快照测试，确认地图真的画出了东西
+6. [x] 实现省份搜索（`/` 打开输入框，匹配省名/国名）
 
 ### 然后（M2 内容）
 
@@ -263,6 +265,12 @@ export const OVERLAY_COLORS = { dataHigh: '#FF6B6B' } as const;
 
 **规避**：写 UI 代码前先查 `node_modules/@opentui/core/**/*.d.ts`，不要凭记忆猜 API。
 
+### 7.7 测试渲染器的两个坑（写 `test/ui/*` 前必读）
+
+- **`captureSpans()` 对 `FrameBufferRenderable` 丢失逐格前景色**：整行合并成一个 span，fg 恒为白（`1,1,1`）。字符帧 `captureCharFrame()` 不受影响。**规避**：内容断言走 `captureCharFrame`，颜色断言走被测代码的纯函数（如 `MapView.colorForCell` 白盒调用），不要指望捕获管线给你颜色。
+- **`MouseEvent.x/y` 是终端绝对坐标**，不是相对 MapView 的坐标。**规避**：查格前减去 `renderable.screenX/screenY`，再做边界检查（`provinceFromEvent` 即此模式）。
+- 捕获/模拟工具都在 `@opentui/core/testing`（`createTestRenderer` / `mockMouse`），参考 `test/ui/map.test.ts`、`test/ui/palette.test.ts`。
+
 ---
 
 ## 附：文件清单速查
@@ -288,11 +296,13 @@ src/ui/
   renderer.ts                  生命周期封装
   input.ts                     四模式键盘路由
   app.ts                       组装层
+  search.ts                    省份/国家检索纯函数（/ 搜索）
   views/{map,statusbar,ticker,inspector,footer,help,palette}.ts
 test/
   sim/{worldgen,modifier}.test.ts
-  ui/theme.test.ts
+  ui/{theme,palette,map,search}.test.ts
 tools/balance.ts               经济压测
+.github/workflows/ci.yml      CI（typecheck + test + 边界 grep）
 DESIGN.md                      设计文档
 TODO.md                        任务清单
 ```

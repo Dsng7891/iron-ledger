@@ -15,11 +15,11 @@ bun run dev -- --seed=999 --autoplay      # extra args pass through after --
 bun run balance                           # headless econ stress (8 worlds × 200y)
 ```
 
-No linter, formatter, or CI config exists. Verification order: `bun run typecheck` → `bun test`.
+No linter or formatter. CI: GitHub Actions (`.github/workflows/ci.yml` = typecheck + test + sim/UI boundary check) runs on every push — only push green. Verification order: `bun run typecheck` → `bun test`.
 
-## Current known blocker (verified)
+## Current status (verified)
 
-- `src/ui/views/palette.ts` is encoding-corrupted (bytes mangled, comments swallowed newlines). It is the **only** file failing `tsc --noEmit`, and it breaks `bun start`. Fix by rewriting the whole file with `write` — see STATUS.md §3.1. `help.ts`, `renderer.ts`, `statusbar.ts` were already rewritten this way.
+- No open blocker. `palette.ts` encoding corruption was fixed by full rewrite (commit `4810494`); `tsc --noEmit` is clean and CI enforces it. Map mouse interaction (#1), map snapshot tests (#2), province search (#3) shipped in commit `9d574d6` (167 tests green). See `STATUS.md` §3.1 for the corruption history.
 
 ## Hard architecture rules
 
