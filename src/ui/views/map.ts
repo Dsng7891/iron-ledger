@@ -18,7 +18,7 @@
  */
 
 import { FrameBufferRenderable, OptimizedBuffer, RGBA } from '@opentui/core';
-import type { CliRenderer } from '@opentui/core';
+import type { CliRenderer, MouseEvent } from '@opentui/core';
 import type { GameMap, Province, ProvinceId, NationId, MapViewMode, TerrainType } from '../../sim/types.ts';
 import { isLand, TERRAIN_NAMES } from '../../sim/types.ts';
 import {
@@ -91,6 +91,12 @@ export class MapView {
   private state: MapViewState;
   private ctx: MapRenderContext;
 
+  /**
+   * 鼠标点击选中省份后的通知回调 (由 App 设置, 用于刷新 Inspector)。
+   * 参数为新选中的省份 (null = 点到水域/界外, 取消选中)。
+   */
+  onSelectProvince: ((id: ProvinceId | null) => void) | null = null;
+
   /** 静态层缓存 —— 只在地形/归属变化时重绘 */
   private staticLayer: OptimizedBuffer;
   /** 静态层对应的画境模式 —— 模式变化时必须重绘 */
@@ -122,6 +128,33 @@ export class MapView {
 
     // 静态层: 与主 buffer 同尺寸
     this.staticLayer = OptimizedBuffer.create(width, height, renderer.widthMethod);
+
+    // --- 鼠标交互 ---
+    // 悬停: 指针移动 → hoverProvince → 动态层画省份轮廓
+    this.renderable.onMouseMove = (event) => {
+      const id = this.provinceFromEvent(event);
+      if (id !== this.state.hoverProvince) {
+        this.setState({ hoverProvince: id });
+        this.render(renderer);
+      }
+    };
+
+    // 移出地图区域 → 清除悬停 (OpenTUI 在指针换元素时发 "out")
+    this.renderable.onMouseOut = () => {
+      if (this.state.hoverProvince !== null) {
+        this.setState({ hoverProvince: null });
+        this.render(renderer);
+      }
+    };
+
+    // 左键: 选中省份 (水域/界外 = 取消选中)
+    this.renderable.onMouseDown = (event) => {
+      if (event.button !== 0) return;
+      const id = this.provinceFromEvent(event);
+      this.setState({ selectedProvince: id, hoverProvince: id });
+      this.render(renderer);
+      this.onSelectProvince?.(id);
+    };
   }
 
   /** 更新输入数据 (每 tick 后调用) */
@@ -232,12 +265,27 @@ export class MapView {
     };
   }
 
-  /** 取格子对应的省份 */
+  /** 取格子对应的省份 (水域/未分配格子的 province 是 -1, 统一归一化为 null) */
   provinceAt(screenX: number, screenY: number): ProvinceId | null {
     const { x, y } = this.screenToMap(screenX, screenY);
     const { width, height } = this.ctx.map;
     if (x < 0 || x >= width || y < 0 || y >= height) return null;
-    return this.ctx.map.cells[y * width + x]!.province;
+    const province = this.ctx.map.cells[y * width + x]!.province;
+    return province >= 0 ? province : null;
+  }
+
+  /**
+   * 鼠标事件 → 省份。
+   * OpenTUI 的 MouseEvent.x/y 是**终端绝对坐标**, 需要减去本 renderable 的
+   * 屏幕位置得到格子内相对坐标。界外一律返回 null。
+   */
+  private provinceFromEvent(event: MouseEvent): ProvinceId | null {
+    const rx = event.x - this.renderable.screenX;
+    const ry = event.y - this.renderable.screenY;
+    if (rx < 0 || ry < 0 || rx >= this.renderable.width || ry >= this.renderable.height) {
+      return null;
+    }
+    return this.provinceAt(rx, ry);
   }
 
   /** 静态层尺寸缓存 */

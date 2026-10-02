@@ -19,12 +19,20 @@ export interface PaletteCommand {
   name: string;
   /** 关联的快捷键 (若无则为 '') */
   keys: string;
+  /** 附加说明 (搜索结果的归属国/首都等) */
+  detail?: string;
   /** 执行 */
   action: () => void;
 }
 
 /** 面板模式 */
 export type PaletteMode = 'command' | 'search';
+
+/**
+ * 动态过滤器 —— search 模式用它把查询交给外部 (省份/国家检索)。
+ * 返回当前查询对应的完整结果列表 (包含空查询时的全量结果)。
+ */
+export type PaletteFilter = (query: string) => PaletteCommand[];
 
 /** 列表最多显示的行数 */
 const MAX_LINES = 20;
@@ -40,6 +48,7 @@ export class CommandPalette {
   private query = '';
   private commands: PaletteCommand[] = [];
   private filtered: PaletteCommand[] = [];
+  private filterFn: PaletteFilter | null = null;
   private selectedIndex = 0;
 
   constructor(renderer: CliRenderer) {
@@ -91,11 +100,12 @@ export class CommandPalette {
     return this.box;
   }
 
-  /** 显示面板 */
-  show(mode: PaletteMode, commands: PaletteCommand[]): void {
+  /** 显示面板。@param filter 可选的动态过滤器 (search 模式接省份/国家查询) */
+  show(mode: PaletteMode, commands: PaletteCommand[], filter?: PaletteFilter): void {
     this.visible = true;
     this.mode = mode;
     this.commands = commands;
+    this.filterFn = filter ?? null;
     this.query = '';
     this.selectedIndex = 0;
     this.box.visible = true;
@@ -108,6 +118,7 @@ export class CommandPalette {
     this.visible = false;
     this.box.visible = false;
     this.query = '';
+    this.filterFn = null;
   }
 
   isVisible(): boolean {
@@ -192,9 +203,11 @@ export class CommandPalette {
     }
   }
 
-  /** 应用过滤 (按名称子串匹配) */
+  /** 应用过滤 (动态过滤器优先, 否则按名称子串匹配) */
   private applyFilter(): void {
-    if (this.query === '') {
+    if (this.filterFn) {
+      this.filtered = this.filterFn(this.query);
+    } else if (this.query === '') {
       this.filtered = [...this.commands];
     } else {
       const lower = this.query.toLowerCase();
@@ -226,7 +239,7 @@ export class CommandPalette {
   private rebuild(): void {
     // --- 输入行 ---
     if (this.mode === 'search') {
-      this.inputLine.content = `> ${this.query}█`;
+      this.inputLine.content = `> ${this.query}█ (${this.filtered.length})`;
       this.inputLine.fg = TEXT.primary;
     } else {
       this.inputLine.content = `命令 (${this.filtered.length})`;
@@ -247,7 +260,8 @@ export class CommandPalette {
       // 选中项用 › 标记
       const marker = isSelected ? '›' : ' ';
       const keys = command.keys ? `[${command.keys}]` : '';
-      const text = `${marker} ${truncateDisplay(command.name, 30)}  ${keys}`;
+      const detail = command.detail ? `(${command.detail})` : '';
+      const text = `${marker} ${truncateDisplay(command.name, 30)} ${detail}  ${keys}`;
 
       line.content = truncateDisplay(text, 60);
       line.fg = isSelected ? SEMANTIC.warn : TEXT.secondary;

@@ -12,7 +12,7 @@
 - [x] `P0` **重写 `src/ui/views/palette.ts`** — 已整体重写（UTF-8 正确），`bun start` 恢复可用。
 - [x] `P0` `bun x tsc --noEmit` 零报错 — 已达成，且由 GitHub Actions CI 每次 push 校验。
 - [x] `P0` `bun run dev` 能正常启动并显示地图 — 进程存活验证 + `--export` headless 冒烟通过。
-- [!] `P0` 地图鼠标交互 + 地图快照测试（见 M1 地图渲染，对应 issue #1 / #2）
+- [x] `P0` 地图鼠标交互 + 地图快照测试（已实现并测试全绿，对应 issue #1 / #2）
 
 ---
 
@@ -38,8 +38,8 @@
 - [x] `P1` 10 种画境模式（政治/地形/人口/发展度/资源/不满/补给/文化/外交/军事）
 - [x] `P1` 国境描边、城市符号、补给线流动虚线、战争标记
 - [x] `P1` 选中/悬停轮廓高亮
-- [!] `P0` **绑定鼠标事件** — `onMouseMove` 查格子 → 设 `hoverProvince`（当前永远是 null）（issue #1）
-- [!] `P0` **用 `createTestRenderer` 写快照测试** — 确认地图真的画出了东西（issue #2；命令面板已有同类测试 `test/ui/palette.test.ts` 可参考）
+- [x] `P0` **绑定鼠标事件** — `onMouseMove` 查格子 → 设 `hoverProvince`，点击选中；`provinceAt` 把海洋/无主地归一为 null（issue #1）
+- [x] `P0` **用 `createTestRenderer` 写快照测试** — `test/ui/map.test.ts` 7 项：首都符号/内容丰富度/颜色管线/悬停/点击/离场清空（issue #2；注：`captureSpans` 对 FrameBufferRenderable 丢前景色，颜色断言走 `colorForCell` 白盒）
 
 ### 省份检视面板
 
@@ -63,7 +63,7 @@
 - [x] `P1` `ui/views/statusbar.ts` / `ticker.ts` / `footer.ts` / `help.ts`
 - [x] `P1` `ui/app.ts`：组装层
 - [x] `P1` `index.ts`：CLI 参数解析（`--seed` `--load` `--autoplay` `--export`）
-- [!] `P1` **省份搜索** — `/` 打开的 search 模式没接省份查询（issue #3）
+- [x] `P1` **省份搜索** — `/` 搜索接入省份/国家检索（`ui/search.ts` 纯函数 + palette 动态过滤器），Enter 跳转并选中（issue #3）
 - [!] `P1` **`app['store']` 私有访问** — 加公开 getter（issue #5）
 - [x] `P1` **`require()` 在 ESM 不可用** — 已改为顶层 `import`（app.saveGame）
 - [x] `P2` CI 校验 `sim/**` 零 UI 依赖 — `.github/workflows/ci.yml`（typecheck + test + boundary grep）

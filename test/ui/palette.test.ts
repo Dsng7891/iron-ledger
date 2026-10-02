@@ -153,4 +153,30 @@ describe('CommandPalette', () => {
     palette.handleKey(key('return'));
     expect(log).toEqual([]);
   });
+
+  test('动态过滤器: 查询交给外部 (省份检索路径)', async () => {
+    log = [];
+    const provinces = ['临江', '临海', '长平'];
+    const filter = (query: string): PaletteCommand[] =>
+      query === ''
+        ? []
+        : provinces
+            .filter((n) => n.includes(query))
+            .map((n) => ({ name: `省份: ${n}`, keys: '', action: () => log.push(n) }));
+
+    palette.show('search', makeCommands(log), filter);
+
+    // 空查询 → 过滤器全权接管, 不显示内置命令
+    expect(await frame()).not.toContain('推进一月');
+
+    palette.handleKey(key('cjk', '临'));
+    const screen = await frame();
+    expect(screen).toContain('省份: 临江');
+    expect(screen).toContain('省份: 临海');
+    expect(screen).not.toContain('长平');
+
+    palette.handleKey(key('return'));
+    expect(log).toEqual(['临江']);
+    expect(palette.isVisible()).toBe(false);
+  });
 });

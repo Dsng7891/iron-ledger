@@ -21,11 +21,12 @@ import { Inspector, type InspectorData } from './views/inspector.ts';
 import { InputRouter } from './input.ts';
 import { Footer } from './views/footer.ts';
 import { HelpOverlay } from './views/help.ts';
-import { CommandPalette } from './views/palette.ts';
+import { CommandPalette, type PaletteCommand, type PaletteFilter } from './views/palette.ts';
+import { searchEntities } from './search.ts';
 import { GameStore, type Command } from '../state/store.ts';
 import { saveGame as persistGame } from '../state/save.ts';
 import type { GameState, MapViewMode, ProvinceId, SpeedSetting } from '../sim/types.ts';
-import { VIEW_MODES, VIEW_MODE_NAMES } from '../sim/types.ts';
+import { VIEW_MODES, VIEW_MODE_NAMES, type NationId } from '../sim/types.ts';
 import { invalidateEconomyCache } from '../sim/tick.ts';
 import { SURFACE, TEXT, formatNumber } from './theme.ts';
 
@@ -88,6 +89,12 @@ export class App {
     );
     this.mapView.renderable.id = 'map';
     this.layout.mapContainer.add(this.mapView.renderable);
+
+    // 鼠标点击省份 → 刷新 Inspector (选中状态由 MapView 自己维护)
+    this.mapView.onSelectProvince = () => {
+      this.refreshInspector();
+      this.render();
+    };
 
     // --- 其他视图 ---
     this.statusBar = new StatusBar(renderer, this.layout.statusBar);
@@ -353,6 +360,10 @@ export class App {
 
     if (this.palette.isVisible()) {
       this.palette.handleKey(event);
+      // 面板被 Esc/执行关闭后恢复普通模式 (否则路由卡死在 modal/search)
+      if (!this.palette.isVisible() && !this.help.isVisible()) {
+        this.router.setMode('normal');
+      }
       this.render();
       return true;
     }
@@ -364,6 +375,7 @@ export class App {
   private handleSearchKeys(event: import('@opentui/core').KeyEvent): boolean {
     if (!this.palette.isSearching()) return false;
     this.palette.handleKey(event);
+    if (!this.palette.isVisible()) this.router.setMode('normal');
     this.render();
     return true;
   }
@@ -410,7 +422,9 @@ export class App {
       this.palette.hide();
       this.router.setMode('normal');
     } else {
-      this.palette.show(mode, this.buildPaletteCommands());
+      const filter: PaletteFilter | undefined =
+        mode === 'search' ? (query) => this.buildSearchResults(query) : undefined;
+      this.palette.show(mode, this.buildPaletteCommands(), filter);
       this.router.setMode(mode === 'search' ? 'search' : 'modal');
     }
     this.render();
@@ -633,6 +647,38 @@ export class App {
       { name: '显示帮助', keys: 'F1', action: () => this.toggleHelp() },
       { name: '退出游戏', keys: 'q', action: () => this.quit() },
     ];
+  }
+
+  /**
+   * search 模式的动态结果 —— 实体 (省份/国家) 优先, 命令殿后。
+   * 空查询时只列命令 (显示全部可用操作)。
+   */
+  private buildSearchResults(query: string): PaletteCommand[] {
+    const results: PaletteCommand[] = searchEntities(this.store.state, query).map((match) => ({
+      name: match.kind === 'province' ? `省份: ${match.name}` : `国家: ${match.name}`,
+      detail: match.detail,
+      keys: '',
+      action: () => this.jumpToEntity(match.kind, match.id),
+    }));
+
+    const lower = query.trim().toLowerCase();
+    for (const cmd of this.buildPaletteCommands()) {
+      if (lower === '' || cmd.name.toLowerCase().includes(lower)) results.push(cmd);
+    }
+    return results;
+  }
+
+  /** 把视口居中到省份/国家首都, 并选中它 */
+  private jumpToEntity(kind: 'province' | 'nation', id: ProvinceId | NationId): void {
+    const state = this.store.state;
+    const provinceId =
+      kind === 'nation'
+        ? state.nations.find((n) => n.id === id)?.capital
+        : (id as ProvinceId);
+    if (provinceId === undefined) return;
+    this.mapView.centerOnProvince(provinceId);
+    this.refreshInspector();
+    this.render();
   }
 
   // -------------------------------------------------------------------------
