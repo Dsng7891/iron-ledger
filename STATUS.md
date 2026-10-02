@@ -10,10 +10,10 @@
 **模拟层（M1 世界生成 + Modifier 管线 + 月度结算）已完成且测试通过；
 UI 层已跑通：`tsc --noEmit` 零报错，167 项测试全绿，
 GitHub Actions CI（typecheck + test + sim/UI 边界）每次 push 校验。
-地图鼠标交互（issue #1）、地图快照测试（issue #2）、省份搜索（issue #3）
-已在提交 `9d574d6` 完成并关闭。
-剩余主要缺口：M2 面板（issue #4）、`app['store']` getter（issue #5）、
-Modifier 迁移（issue #6）、经济平衡（issue #7）。**
+地图鼠标交互（#1）、地图快照测试（#2）、省份搜索（#3）、`App.state` getter（#5）、
+经济平衡（#7：收支标定 + 债务重组熔断，balance 诊断清零）已完成并关闭。
+剩余主要缺口：M2 面板（issue #4）、Modifier 迁移（issue #6）、
+人口增长-科技正反馈失控（300 年 pop 997M，新发现）。**
 
 ---
 

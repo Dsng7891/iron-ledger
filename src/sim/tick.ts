@@ -480,17 +480,16 @@ function runFinance(state: GameState, modifiers: ModifierRegistry): string[] {
       ? 0
       : normalizeLaffer(taxes.incomeTax, optimalRate);
 
-    // 征收率: 稳定度与行政能力决定
     // 征收率: 稳定度与行政能力决定。
     //
-    // 区间标定: 0.30 ~ 0.72。
-    //   - 稳定度 0  → 0.30 (吏治败坏, 大量税收流失)
-    //   - 稳定度 100 → 0.65 (加上 0.35 的满额加成)
-    //   - 科技加成可再乘 1.3 (文官选拔)
+    // 区间标定 (issue #7): collectionBase + 稳定度贡献。
+    //   - 稳定度 0  → 0.36 (吏治败坏, 大量税收流失)
+    //   - 稳定度 60 → 0.60 (与默认税率一起构成"收支大致持平"的基准)
+    //   - 稳定度 100 → 0.76, 科技加成再 ×1.3 (文官选拔), 上限 0.85
     const collectionRate = Math.min(
       0.85,
-      0.30 +
-        (nation.stability / 100) * 0.35 +
+      BALANCE.collectionBase +
+        (nation.stability / 100) * BALANCE.collectionStabilityFactor +
         (modifiers.value(MODIFIER_KEYS.FINANCE_COLLECTION_RATE, { nation: nation.id }) - 1) * 0.3
     );
 
@@ -498,17 +497,16 @@ function runFinance(state: GameState, modifiers: ModifierRegistry): string[] {
 
     // 所得税
     //
-    // 0.45 的含义是"所得税只占税基的一部分" —— GDP 中有相当部分是不经过
-    // 正式税收渠道的 (自给经济、贵族隐匿收入)。没有这个折扣, 拉弗曲线
-    // 的峰值会让所得税单项就达到 GDP 的 0.6, 国库每年上亿且毫无压力,
-    // 财政系统形同虚设。
-    const incomeTax = taxBase * laffer * collectionRate * 0.45;
+    // incomeTaxShare (0.45) 的含义是"所得税只占税基的一部分" —— GDP 中有相当
+    // 部分是不经过正式税收渠道的 (自给经济、贵族隐匿收入)。没有这个折扣,
+    // 拉弗曲线的峰值会让所得税单项就达到 GDP 的 0.6, 财政系统形同虚设。
+    const incomeTax = taxBase * laffer * collectionRate * BALANCE.incomeTaxShare;
 
-    // 消费税 (占 GDP 的比例由税率决定, 基础系数 0.30)
-    const consumptionTax = economy.gdp * taxes.consumptionTax * 0.30;
+    // 消费税 (占 GDP 的比例由税率决定)
+    const consumptionTax = economy.gdp * taxes.consumptionTax * BALANCE.consumptionTaxFactor;
 
-    // 关税: 按 GDP 比例简化, 基础系数 0.15
-    const tariff = economy.gdp * taxes.tariff * 0.15;
+    // 关税: 按 GDP 比例简化
+    const tariff = economy.gdp * taxes.tariff * BALANCE.tariffFactor;
 
     const revenue = incomeTax + consumptionTax + tariff;
 
@@ -516,19 +514,19 @@ function runFinance(state: GameState, modifiers: ModifierRegistry): string[] {
     const focus = nation.focus;
     const population = nation.provinces.reduce((sum, id) => sum + (state.provinces[id]?.pop ?? 0), 0);
 
-    // 军事开支: 焦点每 1% 军费 = GDP 的 0.5%。
-    // 取 100% 军费时军费占 GDP 的一半 —— 这是历史上的真实量级 (法国 1800 年代
+    // 军事开支: 焦点每 1% 军费 = GDP 的 militaryPerFocus%。
+    // 取 100% 军费时军费占 GDP 的 45% —— 历史上的真实量级 (法国 1800 年代
     // 军费约占财政支出的 50%+), 也是"穷国养不起军队"压力的来源。
-    const militarySpend = economy.gdp * (focus.military / 100) * 0.5;
+    const militarySpend = economy.gdp * (focus.military / 100) * BALANCE.militaryPerFocus;
 
-    // 科研开支: 焦点每 1% = GDP 的 0.15%
-    const researchSpend = economy.gdp * (focus.research / 100) * 0.15;
+    // 科研开支: 焦点每 1% = GDP 的 researchPerFocus%
+    const researchSpend = economy.gdp * (focus.research / 100) * BALANCE.researchPerFocus;
 
-    // 固定支出 (与焦点无关)
-    const administration = economy.gdp * 0.18;
-    const education = economy.gdp * 0.09;
-    const infrastructure = economy.gdp * 0.11;
-    const court = economy.gdp * 0.07;
+    // 固定支出 (与焦点无关, 合计 adminShare+educationShare+infraShare+courtShare = 0.20)
+    const administration = economy.gdp * BALANCE.adminShare;
+    const education = economy.gdp * BALANCE.educationShare;
+    const infrastructure = economy.gdp * BALANCE.infraShare;
+    const court = economy.gdp * BALANCE.courtShare;
 
     const expenditure =
       militarySpend + researchSpend + administration + education + infrastructure + court;
@@ -537,13 +535,7 @@ function runFinance(state: GameState, modifiers: ModifierRegistry): string[] {
     const balance = revenue - expenditure;
     nation.treasury += balance;
 
-    // 赤字 → 举债
-    if (nation.treasury < 0) {
-      nation.debt += -nation.treasury;
-      nation.treasury = 0;
-    }
-
-    // --- 利息与通胀 ---
+    // --- 利息 ---
     //
     // 利率是**年化**的, 因此月度利息必须除以 12。
     //
@@ -554,9 +546,24 @@ function runFinance(state: GameState, modifiers: ModifierRegistry): string[] {
     const monthlyInterest = (nation.debt * (interestRate / 100)) / 12;
     nation.treasury -= monthlyInterest;
 
+    // 国库兜底: 亏空部分转为债务 (连同本月未付利息)。
+    // 顺序是"先扣利息再兜底", 保证月末国库恒 >= 0 (旧顺序会让国库永远
+    // 停在 -当月利息, 快照里显示成天文负数)。
+    if (nation.treasury < 0) {
+      nation.debt += -nation.treasury;
+      nation.treasury = 0;
+    }
+
     // 货币扩张: 赤字越大通胀越高 (简化的货币主义模型)
+    //
+    // 目标 = 基础通胀 + 赤字率 × 系数 + 利率修正。
+    // 基础通胀保证预算平衡时目标停在 2% 而非坍缩到 0 (issue #7: 旧公式
+    // `赤字率×12 + mod - 4` 在平衡预算下目标是 -3, 通胀归零触发僵化诊断)。
     const deficitRatio = expenditure > 0 ? Math.max(0, -balance / expenditure) : 0;
-    const targetInflation = deficitRatio * 12 + modifiers.value(MODIFIER_KEYS.FINANCE_INTEREST_RATE, { nation: nation.id }) - 4;
+    const targetInflation =
+      BALANCE.inflationBase +
+      deficitRatio * BALANCE.inflationDeficitFactor +
+      (modifiers.value(MODIFIER_KEYS.FINANCE_INTEREST_RATE, { nation: nation.id }) - 1) * 4;
     // 通胀向目标值缓慢靠拢
     nation.inflation += (targetInflation - nation.inflation) * 0.05;
     nation.inflation = Math.max(0, nation.inflation);
@@ -571,15 +578,24 @@ function runFinance(state: GameState, modifiers: ModifierRegistry): string[] {
       if (nation.creditRating < 4) {
         messages.push(`信用评级跌至 ${nation.creditRating.toFixed(1)}, 借贷成本急剧上升`);
       }
-      if (nation.treasury < 0) {
+      if (balance < 0 && nation.debt > 0) {
         messages.push('国库亏空, 已被迫举债');
       }
     }
 
-    // --- 强制破产: 债务超过 GDP 20 倍 ---
-    if (economy.gdp > 0 && nation.debt > economy.gdp * 20) {
+    // --- 主权债务重组 (熔断器, issue #7) ---
+    //
+    // 利息资本化使持续赤字的债务按 (1+r)^t 指数爆炸 —— 没有任何赤字率能
+    // 自然收敛。债务到 threshold×GDP 时强制减记, 打破复利螺旋:
+    //   减记后债务 ≈ debtCrisisKeep × threshold × GDP = 3.2×GDP (健康线 10 以内)
+    //   代价: 信用崩到 1 + 稳定度 -5 / 合法性 -10, 换取利率回落的喘息期。
+    // 若结构性赤字不改, 约每 10~15 年会再触发一次 —— 慢性违约国的画像。
+    if (economy.gdp > 0 && nation.debt > economy.gdp * BALANCE.debtCrisisThreshold) {
+      nation.debt = Math.floor(nation.debt * BALANCE.debtCrisisKeep);
       nation.creditRating = 1;
-      messages.push(`${nation.name} 债务崩溃, 进入国家破产状态`);
+      nation.stability = Math.max(0, nation.stability - BALANCE.debtCrisisStabilityHit);
+      nation.legitimacy = Math.max(0, nation.legitimacy - BALANCE.debtCrisisLegitimacyHit);
+      messages.push(`${nation.name} 主权债务违约, 国债被迫减记`);
     }
 
     // 人均 GDP (用于判断国家是否繁荣)

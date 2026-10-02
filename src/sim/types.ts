@@ -472,7 +472,9 @@ export interface TaxSettings {
 }
 
 export function createDefaultTaxes(): TaxSettings {
-  return { incomeTax: 0.3, consumptionTax: 0.08, tariff: 0.12 };
+  // 与 BALANCE 的收支标定配套 (issue #7): 默认税率下稳定度 60 的国家
+  // 月度预算 ≈ 持平 —— 提高消费税/关税是玩家制造盈余的主要杠杆。
+  return { incomeTax: 0.3, consumptionTax: 0.1, tariff: 0.15 };
 }
 
 /**
